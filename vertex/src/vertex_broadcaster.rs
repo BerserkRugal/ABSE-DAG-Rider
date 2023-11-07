@@ -30,11 +30,19 @@ impl VertexBroadcaster {
                     let bytes = bincode::serialize(&vertex).expect("Failed to serialize vertex in VertexBroadcaster");
 
                     let handlers = self.network.broadcast(addresses, Bytes::from(bytes)).await;
-                    for h in handlers {
+
+                    tokio::spawn(async move {
+                      for h in handlers {
                         if let Err(e) = h.await {
                             error!("Broadcast of vertices was not successful")
                         }
                     }
+                  });
+                    // for h in handlers {
+                    //     if let Err(e) = h.await {
+                    //         error!("Broadcast of vertices was not successful")
+                    //     }
+                    // }
                 }
             }
         }

@@ -4,6 +4,7 @@ use std::ops::Add;
 use model::committee::NodePublicKey;
 use model::Round;
 use model::vertex::{Vertex, VertexHash};
+use log::{debug};
 
 pub struct Dag {
     pub graph: BTreeMap<Round, HashMap<NodePublicKey, Vertex>>,
@@ -46,6 +47,7 @@ impl Dag {
     }
 
     pub fn is_quorum_reached_for_round(&self, round: &Round) -> bool {
+        debug!("round is:{}, length is:{}, min_quorum is:{}",round, self.graph.get(round).unwrap().len(), self.min_quorum);
         match self.graph.get(round) {
             Some(v) => v.len() as u32 >= self.min_quorum,
             None => false

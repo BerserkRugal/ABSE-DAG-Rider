@@ -39,7 +39,7 @@ impl BlockBuilder {
 
     async fn run(&mut self) {
         while let Some(transaction) = self.transaction_receiver.recv().await {
-            info!("BlockBuilder received transaction {:?}", transaction);
+            debug!("BlockBuilder received transaction {:?}", transaction);
             self.current_transactions.push(transaction);
 
             if self.current_transactions.len() >= self.batch_size {
@@ -49,12 +49,23 @@ impl BlockBuilder {
 
                 // Broadcast the block through the network.
                 let bytes = Bytes::from(serialized.clone());
+                debug!("Broadcast Start!");
                 let handlers = self.network.broadcast(self.committee.get_block_receiver_addresses(), bytes).await;
-                for h in handlers {
-                    if let Err(e) = h.await {
-                        error!("Broadcast of the block was not successful: {:?}", e);
-                    }
-                }
+                
+                // for h in handlers {
+                //     if let Err(e) = h.await {
+                //         error!("Broadcast of the block was not successful: {:?}", e);
+                //     }
+                // }
+                // debug!("Broadcast has finished!");
+                tokio::spawn(async move {
+                  for h in handlers {
+                      if let Err(e) = h.await {
+                          error!("Broadcast of the block was not successful: {:?}", e);
+                      }
+                  }
+                  debug!("Broadcast has finished!");
+              });
             }
         }
     }

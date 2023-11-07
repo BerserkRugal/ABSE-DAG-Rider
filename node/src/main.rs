@@ -26,6 +26,7 @@ async fn main() -> Result<()> {
             SubCommand::with_name("run")
                 .about("Run a node")
                 .args_from_usage("--id=<INT> 'Node id'")
+                .args_from_usage("--pretend_failure=<PF> 'pretend to be a faulty node'")
                 .args_from_usage("--committee=<PATH> 'Path to committee JSON file'")
                 .args_from_usage("--channel_capacity=[CAPACITY] 'Channel capacity'")
                 .args_from_usage("--batch_size=[SIZE] 'Batch size'")
@@ -34,12 +35,13 @@ async fn main() -> Result<()> {
           SubCommand::with_name("generate")
               .about("Generate committee and run nodes")
               .args_from_usage("--node_count=[COUNT] 'Number of nodes'")
+              .args_from_usage("--faulty_count=[FCOUNT] 'Number of faulties'")
               .args_from_usage("--channel_capacity=[CAPACITY] 'Channel capacity'")
               .args_from_usage("--batch_size=[SIZE] 'Batch size'")
         )
         .get_matches();
 
-    let mut logger = env_logger::Builder::from_env(Env::default().default_filter_or("debug"));
+    let mut logger = env_logger::Builder::from_env(Env::default().default_filter_or("info"));
     logger.init();
 
     match matches.subcommand() {
@@ -52,6 +54,14 @@ async fn main() -> Result<()> {
 
 async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     let node_id = matches.value_of("id").unwrap().parse::<Id>().unwrap();
+
+    let pretend_failure = matches
+    .value_of("pretend_failure")
+    .unwrap_or("0")
+    .parse::<usize>()
+    .unwrap();
+
+    let pretend_failure = pretend_failure != 0;
 
     let channel_capacity = matches
     .value_of("channel_capacity")
@@ -80,7 +90,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         //Committee::default(),
         committee.clone(),
         vertex_to_consensus_sender,
-        vertex_to_broadcast_receiver
+        vertex_to_broadcast_receiver,
+        pretend_failure
     );
 
     TransactionCoordinator::spawn(
@@ -89,6 +100,7 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         committee.clone(),
         block_sender,
         batch_size,
+        pretend_failure
     );
 
     Consensus::spawn(
@@ -112,6 +124,18 @@ async fn generate(matches: &ArgMatches<'_>) -> Result<()> {
         .unwrap_or("4")
         .parse::<usize>()
         .unwrap();
+
+  let faulty_count = matches
+        .value_of("faulty_count")
+        .unwrap_or("0")
+        .parse::<usize>()
+        .unwrap(); 
+  
+  if faulty_count > node_count - node_count / 3 * 2 - 1{
+      println!("The number of malicious nodes is too high to meet 
+      the minimum requirements for reaching consensus, at which point the throughput is 0.");
+      return Ok(());
+  }      
 
   let channel_capacity = matches
   .value_of("channel_capacity")
@@ -137,16 +161,25 @@ async fn generate(matches: &ArgMatches<'_>) -> Result<()> {
   writeln!(script, "#!/bin/bash")?;
   for id in 1..=node_count {
     if id==1{
-      writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} &", id, batch_size, channel_capacity)?;
+      if id > node_count - faulty_count{
+        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=1 &", id, batch_size, channel_capacity)?;
+      }else{
+        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=0 &", id, batch_size, channel_capacity)?;
+      }
     }else{
-      writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} &>/dev/null &", id, batch_size, channel_capacity)?;
+      if id > node_count - faulty_count{
+        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=1 &>/dev/null &", id, batch_size, channel_capacity)?;
+      }else{
+        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=0 &>/dev/null &", id, batch_size, channel_capacity)?;
+      }
+      //writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} &>/dev/null &", id, batch_size, channel_capacity)?;
     }
     writeln!(script, "THREAD_{}=$!", id-1)?;
   }
 
   write!(script, "trap 'kill")?;
 
-  for id in 1..=node_count {
+  for id in 0..=node_count-1 {
     write!(script, " $THREAD_{}", id)?;
   }
 
@@ -164,50 +197,50 @@ async fn wait_and_print_vertexs(mut vertex_output_receiver: Receiver<Vertex>) {
     }
 }
 
-async fn default_run(matches: &ArgMatches<'_>) -> Result<()> {
-  let node_id = matches.value_of("id").unwrap().parse::<Id>().unwrap();
+// async fn default_run(matches: &ArgMatches<'_>) -> Result<()> {
+//   let node_id = matches.value_of("id").unwrap().parse::<Id>().unwrap();
 
-  let channel_capacity = matches
-  .value_of("channel_capacity")
-  .unwrap_or("1000")
-  .parse::<usize>()
-  .unwrap();
+//   let channel_capacity = matches
+//   .value_of("channel_capacity")
+//   .unwrap_or("1000")
+//   .parse::<usize>()
+//   .unwrap();
 
-  let batch_size = matches
-  .value_of("batch_size")
-  .unwrap_or("10")
-  .parse::<usize>()
-  .unwrap();
+//   let batch_size = matches
+//   .value_of("batch_size")
+//   .unwrap_or("10")
+//   .parse::<usize>()
+//   .unwrap();
 
-  let (vertex_output_sender, vertex_output_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
+//   let (vertex_output_sender, vertex_output_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
 
-  let (vertex_to_broadcast_sender, vertex_to_broadcast_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
-  let (vertex_to_consensus_sender, vertex_to_consensus_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
-  let (block_sender, block_receiver) = channel::<Block>(DEFAULT_CHANNEL_CAPACITY);
+//   let (vertex_to_broadcast_sender, vertex_to_broadcast_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
+//   let (vertex_to_consensus_sender, vertex_to_consensus_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
+//   let (block_sender, block_receiver) = channel::<Block>(DEFAULT_CHANNEL_CAPACITY);
 
-  VertexCoordinator::spawn(
-      node_id,
-      Committee::default(),
-      vertex_to_consensus_sender,
-      vertex_to_broadcast_receiver
-  );
+//   VertexCoordinator::spawn(
+//       node_id,
+//       Committee::default(),
+//       vertex_to_consensus_sender,
+//       vertex_to_broadcast_receiver
+//   );
 
-  TransactionCoordinator::spawn(
-      node_id,
-      Committee::default(),
-      block_sender,
-      batch_size,
-  );
+//   TransactionCoordinator::spawn(
+//       node_id,
+//       Committee::default(),
+//       block_sender,
+//       batch_size,
+//   );
 
-  Consensus::spawn(
-      node_id,
-      Committee::default(),
-      vertex_to_consensus_receiver,
-      vertex_to_broadcast_sender,
-      vertex_output_sender,
-      block_receiver
-  );
+//   Consensus::spawn(
+//       node_id,
+//       Committee::default(),
+//       vertex_to_consensus_receiver,
+//       vertex_to_broadcast_sender,
+//       vertex_output_sender,
+//       block_receiver
+//   );
 
-  wait_and_print_vertexs(vertex_output_receiver).await;
-  unreachable!();
-}
+//   wait_and_print_vertexs(vertex_output_receiver).await;
+//   unreachable!();
+// }

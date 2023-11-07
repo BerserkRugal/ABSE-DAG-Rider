@@ -1,8 +1,6 @@
 # ABSE-DAG-Rider
 Apply ABSE to DAG-Dider.
 
-DAG-Dider was taken from https://github.com/Shendor/dag-rider with modifications.
-
 ## How to run
 Run
 
@@ -27,7 +25,7 @@ Example:
 
 Generate relevant configuration files in the current directory (batch size: 10, channel capacity： 1000， 16 processes, 0 fauties):
 ```Bash
-./node generate --batch_size 10 --channel_capacity 1000 --node_count 16
+./node generate --batch_size 10 --channel_capacity 1000 --node_count 16 --faulty_count 0
 ```
 
 This generates the committee.json and run_node.sh configuration files. 
@@ -41,6 +39,24 @@ You also need to start the clients to send transactions to the node, for example
 ```Bash
 ./client --TRANSACTION_COUNT 100 --TX_SIZE 40 127.0.0.1:8124 
 ```
-Note that the default ports for the nodes start at 8123, where each process occupies three consecutive ports, the second port is used to receive transactions, and you can follow this logic to find the port number of the process you need. You can also write script files to implement the operation of sending a certain number of transactions at regular intervals.
+Note that the default ports for the nodes start at 127.0.0.1:8123, where each process occupies three consecutive ports, the second port is used to receive transactions, and you can follow this logic to find the port number of the process you need. You can also write script files to implement the operation of sending a certain number of transactions at regular intervals.
+
+
+## Some notes related to the code
 
 Note: Currently, throughput and latency do not support automatic statistics and may need to be calculated manually.
+
+Note: It is possible to set RUST_LOG=DEBUG for the node in run_nodes.sh to print the node's DAG graph as well as transaction's detail on the console every round. However, this affects system performance quite a bit and is only recommended when verifying that the system is functioning correctly.
+
+Note: The main DAG-Dider code was taken from https://github.com/Shendor/dag-rider with modifications.
+
+V0.2 additional features are as follows:
+
+1. Increase the scalability of the system
+
+2. Support to change the setting parameters through the command line and add the function of automatic generation of scripts.
+
+3. Retain the error handling and task management functions while avoiding the main thread being blocked.
+
+4. Added node simulation of faulty nodes related components
+

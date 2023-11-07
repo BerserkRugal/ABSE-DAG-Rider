@@ -28,13 +28,15 @@ pub struct Receiver<Handler: MessageHandler> {
     address: SocketAddr,
     /// Struct responsible to define how to handle received messages.
     handler: Handler,
+    /// Whether to simulate a network failure by dropping packets.
+    should_drop_packets: bool,
 }
 
 impl<Handler: MessageHandler> Receiver<Handler> {
     /// Spawn a new network receiver handling connections from any incoming peer.
-    pub fn spawn(address: SocketAddr, handler: Handler) {
+    pub fn spawn(address: SocketAddr, handler: Handler, should_drop_packets: bool) {
         tokio::spawn(async move {
-            Self { address, handler }.run().await;
+            Self { address, handler, should_drop_packets }.run().await;
         });
     }
 
@@ -54,19 +56,23 @@ impl<Handler: MessageHandler> Receiver<Handler> {
                 }
             };
             info!("Incoming connection established with {}", peer);
-            Self::spawn_runner(socket, peer, self.handler.clone()).await;
+            Self::spawn_runner(socket, peer, self.handler.clone(), self.should_drop_packets.clone()).await;
         }
     }
 
     /// Spawn a new runner to handle a specific TCP connection. It receives messages and process them
     /// using the provided handler.
-    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, handler: Handler) {
+    async fn spawn_runner(socket: TcpStream, peer: SocketAddr, handler: Handler, should_drop_packets: bool) {
         tokio::spawn(async move {
             let transport = Framed::new(socket, LengthDelimitedCodec::new());
             let (mut writer, mut reader) = transport.split();
             while let Some(frame) = reader.next().await {
                 match frame.map_err(|e| NetworkError::FailedToReceiveMessage(peer, e)) {
                     Ok(message) => {
+                        if should_drop_packets {
+                            // drop packet
+                            continue;
+                        }
                         if let Err(e) = handler.dispatch(&mut writer, message.freeze()).await {
                             warn!("{}", e);
                             return;

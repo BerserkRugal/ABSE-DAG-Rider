@@ -15,7 +15,8 @@ impl VertexCoordinator {
         node_id: Id,
         committee: Committee,
         vertex_to_consensus_sender: Sender<Vertex>,
-        vertex_to_broadcast_receiver: Receiver<Vertex>
+        vertex_to_broadcast_receiver: Receiver<Vertex>,
+        pretend_failure: bool,
     ) {
         // Spawn the network receiver listening to vertices broadcasted from the other nodes.
         debug!("Start listening for vertices from other nodes");
@@ -23,6 +24,7 @@ impl VertexCoordinator {
         NetworkReceiver::spawn(
             address,
             VertexReceiverHandler { vertex_to_consensus_sender },
+            pretend_failure,
         );
         info!("Vertex Coordinator listening to the messages on {}", address);
 

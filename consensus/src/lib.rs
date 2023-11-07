@@ -81,6 +81,7 @@ impl Consensus {
             }
 
             debug!("Consensus goes to the next iteration");
+            //debug!("block to propose:{}",self.blocks_to_propose.is_empty());
 
             if !self.blocks_to_propose.is_empty() && self.state.dag.is_quorum_reached_for_round(&(self.state.current_round)) {
                 info!("DAG has reached the quorum for the round {:?}", self.state.current_round);
@@ -98,11 +99,12 @@ impl Consensus {
                 }
                 // when quorum for the round reached, then go to the next round
                 self.state.current_round += 1;
-                info!("DAG goes to the next round {:?} \n{}", self.state.current_round, self.state.dag);
+                debug!("DAG goes to the next round {:?} \n{}", self.state.current_round, self.state.dag);
                 let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
 
                 info!("Broadcast the new vertex {}", new_vertex);
                 self.vertex_to_broadcast_sender.send(new_vertex).await.unwrap();
+                //debug!("Broadcast the new vertex successfully!");
             }
         }
     }

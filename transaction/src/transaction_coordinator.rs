@@ -27,7 +27,7 @@ impl TransactionCoordinator {
         committee: Committee,
         block_sender: Sender<Block>,
         batch_size: usize,
-
+        pretend_failure: bool,
     ) {
         let (transaction_to_block_builder_sender, transaction_receiver) = channel(DEFAULT_CHANNEL_CAPACITY);
 
@@ -36,6 +36,7 @@ impl TransactionCoordinator {
         Receiver::spawn(
             tx_address,
             TxReceiverHandler { transaction_to_block_builder_sender },
+            pretend_failure,
         );
 
         let address = committee.get_block_receiver_address(node_id).unwrap();
@@ -43,6 +44,7 @@ impl TransactionCoordinator {
         Receiver::spawn(
             address,
             BlockReceiverHandler { block_sender },
+            pretend_failure,
         );
 
         BlockBuilder::spawn(
@@ -61,7 +63,7 @@ struct TxReceiverHandler {
 #[async_trait]
 impl MessageHandler for TxReceiverHandler {
     async fn dispatch(&self, _writer: &mut Writer, message: Bytes) -> Result<(), Box<dyn Error>> {
-        info!("TxReceiverHandler received transaction to process {:?}", message);
+        debug!("TxReceiverHandler received transaction to process {:?}", message);
         // Send the transaction to the block builder.
         self.transaction_to_block_builder_sender
             .send(message.to_vec())
