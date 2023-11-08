@@ -1,13 +1,15 @@
 use std::collections::HashSet;
+use std::collections::HashMap;
 use log::{debug, info};
 use tokio::sync::mpsc::{Receiver, Sender};
 
 use model::{Round, Wave};
 use model::block::Block;
-use model::committee::{Committee, Id};
+use model::committee::{Committee, Id, NodePublicKey};
 use model::vertex::{Vertex, VertexHash};
 
 use crate::state::State;
+use crate::abse::ABSE;
 
 mod dag;
 mod state;
@@ -27,6 +29,9 @@ pub struct Consensus {
     vertex_receiver: Receiver<Vertex>,
     vertex_output_sender: Sender<Vertex>,
     vertex_to_broadcast_sender: Sender<Vertex>,
+    abse_struct:ABSE,
+    score_array: Vec<u64>,
+    id_to_index: HashMap<NodePublicKey, usize>,
 }
 
 impl Consensus {
@@ -40,6 +45,14 @@ impl Consensus {
     ) {
         tokio::spawn(async move {
             let state = State::new(Vertex::genesis(committee.get_nodes_keys()));
+            let csize = committee.size().clone();
+            let score_array = vec![0; csize];
+            let faulties = csize - committee.quorum_threshold().clone();
+            let mut id_to_index = HashMap::new();
+            for (_, validator) in committee.validators.iter() {
+              let public_key = &validator.public_key;
+              id_to_index.insert(public_key.clone(), id_to_index.len());
+            }
             Self {
                 node_id,
                 committee,
@@ -52,6 +65,9 @@ impl Consensus {
                 buffer: vec![],
                 blocks_to_propose: vec![],
                 blocks_receiver,
+                abse_struct: ABSE::new(3, faulties as u64),
+                score_array,
+                id_to_index
             }.run().await;
         });
     }
@@ -85,6 +101,9 @@ impl Consensus {
 
             if !self.blocks_to_propose.is_empty() && self.state.dag.is_quorum_reached_for_round(&(self.state.current_round)) {
                 info!("DAG has reached the quorum for the round {:?}", self.state.current_round);
+                let s_array = self.get_array().to_vec();
+                self.abse_struct.set_info(s_array);
+                self.reset_array();
                 if Self::is_last_round_in_wave(self.state.current_round) {
                     info!("Finished the last round {:?} in the wave. Start to order vertices", self.state.current_round);
                     let ordered_vertices = self.get_ordered_vertices(self.state.current_round / MAX_WAVE);
@@ -98,8 +117,19 @@ impl Consensus {
                     }
                 }
                 // when quorum for the round reached, then go to the next round
+
                 self.state.current_round += 1;
+                let current_round = self.state.current_round.clone();
                 debug!("DAG goes to the next round {:?} \n{}", self.state.current_round, self.state.dag);
+                
+                if self.abse_struct.get_r() < current_round {
+                  self.abse_struct.update_round(current_round);
+                  self.abse_struct.update();
+                  self.abse_struct.set_info(Vec::new());
+                  debug!("{:?}: ABSE Struct", self.abse_struct);
+                }
+                
+                
                 let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
 
                 info!("Broadcast the new vertex {}", new_vertex);
@@ -141,6 +171,7 @@ impl Consensus {
 
     fn get_ordered_vertices(&mut self, wave: Wave) -> Vec<Vertex> {
         if let Some(leader) = self.get_wave_vertex_leader(wave) {
+            let wleader = leader.clone();
             debug!("Selected a vertex leader: {}", leader);
             // we need to make sure that if one correct process commits the wave
             // vertex leader 𝑣, then all the other correct processes will commit 𝑣
@@ -148,11 +179,15 @@ impl Consensus {
             // commits the wave 𝑤 vertex leader 𝑣 if:
             let round = self.get_round_for_wave(wave, MAX_WAVE);
             if self.state.dag.is_linked_with_others_in_round(leader, round) {
+                let linked_public_keys = self.state.dag.get_valid_vertices_voters(leader, round);
                 debug!("The leader is strongly linked to others in the round {}", round);
                 let mut leaders_to_commit = self.get_leaders_to_commit(wave - 1, leader);
                 self.decided_wave = wave;
                 debug!("Set decided wave to {}", wave);
-
+                for pubkey in linked_public_keys {
+                  self.set_voter_id(pubkey);
+                }
+                self.set_voter_id(wleader.owner());
                 // go through the un-committed leaders starting from the oldest one
                 return self.order_vertices(&mut leaders_to_commit);
             }
@@ -225,5 +260,27 @@ impl Consensus {
 
     fn is_last_round_in_wave(round: Round) -> bool {
         round % MAX_WAVE == 0
+    }
+
+    fn get_index(&self, voter_id: NodePublicKey) -> Option<usize> {
+      self.id_to_index.get(&voter_id).cloned()
+    }
+
+    fn reset_array(&mut self) {
+      for item in &mut self.score_array {
+          *item = 0;
+      }
+    }
+  
+    fn get_array(&self) -> &[u64] {
+      &self.score_array
+    }
+
+    fn set_voter_id(&mut self, voter_id: NodePublicKey) {
+      //debug!("Set for: {:?}!",voter_id);
+      if let Some(index) = self.get_index(voter_id) {
+          self.score_array[index] += 1;
+          //debug!("Success! Current array is: {:?}", self.score_array);
+      }
     }
 }

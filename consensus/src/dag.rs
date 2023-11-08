@@ -47,7 +47,7 @@ impl Dag {
     }
 
     pub fn is_quorum_reached_for_round(&self, round: &Round) -> bool {
-        debug!("round is:{}, length is:{}, min_quorum is:{}",round, self.graph.get(round).unwrap().len(), self.min_quorum);
+        //debug!("round is:{}, length is:{}, min_quorum is:{}",round, self.graph.get(round).unwrap().len(), self.min_quorum);
         match self.graph.get(round) {
             Some(v) => v.len() as u32 >= self.min_quorum,
             None => false
@@ -62,6 +62,20 @@ impl Dag {
             }
         }
         weight >= self.min_quorum
+    }
+
+    pub fn get_valid_vertices_voters(&self, vertex: &Vertex, round: Round) -> Vec<NodePublicKey> {
+        let mut linked_public_keys = Vec::new();
+
+        if let Some(vertices_map) = self.graph.get(&round) {
+            for v in vertices_map.values() {
+                if self.is_strongly_linked(v, vertex) {
+                    linked_public_keys.push(v.owner().clone());
+                }
+            }
+        }
+
+        linked_public_keys
     }
 
     pub fn is_strongly_linked(&self, newest: &Vertex, oldest: &Vertex) -> bool {
