@@ -244,14 +244,63 @@ impl Consensus {
     fn get_wave_vertex_leader(&self, wave: Wave) -> Option<&Vertex> {
         let first_round_of_wave = self.get_round_for_wave(wave, 1);
         let coin = first_round_of_wave;
+        // let coin = wave;
 
         // Elect the leader.
         let mut keys: Vec<_> = self.committee.get_nodes_keys();
         keys.sort();
         let leader = keys[coin as usize % self.committee.size()];
+        let abse_s = self.abse_struct.clone();
+        if let Some(index) = self.get_index(leader.clone()){
+          if abse_s.judge(index) {
+            if self.choose_leader(wave.clone()){
+              debug!("{}-{:?}: can be the leader of wave {}", index, leader, wave);
+              self.state.dag.graph.get(&first_round_of_wave).map(|x| x.get(&leader)).flatten()
+            }else{
+              None
+            }
+          }else {
+            debug!("{}-{:?}: can not be the leader of wave {}, skip.", index, leader, wave);
+            None
+          }
+        }else{
+          None
+        }
+        //self.state.dag.graph.get(&first_round_of_wave).map(|x| x.get(&leader)).flatten()
+    }
 
-        // leader is elected at the first round of the wave
-        self.state.dag.graph.get(&first_round_of_wave).map(|x| x.get(&leader)).flatten()
+    fn choose_leader(&self, wave: Wave) -> bool {
+    // //  Since the existing DAG protocols only emulate the 
+    // // building block of global perfect coin, we also choose to emulate 'choose_leader', 
+    // // but of course, we can also choose to use the following annotated form of broadcasting 
+    // // to realize it 
+    //
+    //   self.leader_choose_broadcaster.send(LeaderMessage::::new(
+    //     self.committee.get_node_key(self.node_id).unwrap(),
+    //     wave,
+    //   ));
+    //   let wave_map = self.leadermessages.entry(wave).or_default();
+    //   if wave_map.len() >= self.committee.quorum_threshold() {
+    //     true
+    //   }else{
+    //     false
+    //   }
+    //   // An additional thread would be needed to always perform 
+    //   // the function similar to the code below, 
+    //   // specifically by defining a leader_choose_coordinator like structure 
+    //   // and then spawn_run in main:
+    //
+    //   tokio::select! {
+    //     Some(lm) = self.leader_choose_receiver.recv() => {
+    //         let voter_id = lm.public_key;
+    //         // The type of leadermessages is similar to 
+    //         // pub leadermessages: HashMap<Wave, Vec<PublicKey>>,
+    //         let wave_map = self.leadermessages.entry(wave).or_default();
+    //         // TODO: check if voter_id is already in voters
+    //         wave_map.push(voter_id);
+    //     },
+    // }
+      true
     }
 
     fn get_round_for_wave(&self, wave: Wave, round: Round) -> Round {

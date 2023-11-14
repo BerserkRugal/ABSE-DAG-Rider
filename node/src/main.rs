@@ -42,7 +42,7 @@ async fn main() -> Result<()> {
         .get_matches();
 
     let mut logger = env_logger::Builder::from_env(Env::default().default_filter_or("info"));
-    logger.init();
+    logger.format_timestamp_millis().init();
 
     match matches.subcommand() {
         ("run", Some(sub_matches)) => run(sub_matches).await?,
@@ -79,11 +79,11 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     // Load the committee from the file.
     let committee: Committee = serde_json::from_reader(File::open(committee_file)?)?;
 
-    let (vertex_output_sender, vertex_output_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
+    let (vertex_output_sender, vertex_output_receiver) = channel::<Vertex>(channel_capacity);
 
-    let (vertex_to_broadcast_sender, vertex_to_broadcast_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
-    let (vertex_to_consensus_sender, vertex_to_consensus_receiver) = channel::<Vertex>(DEFAULT_CHANNEL_CAPACITY);
-    let (block_sender, block_receiver) = channel::<Block>(DEFAULT_CHANNEL_CAPACITY);
+    let (vertex_to_broadcast_sender, vertex_to_broadcast_receiver) = channel::<Vertex>(channel_capacity);
+    let (vertex_to_consensus_sender, vertex_to_consensus_receiver) = channel::<Vertex>(channel_capacity);
+    let (block_sender, block_receiver) = channel::<Block>(channel_capacity);
 
     VertexCoordinator::spawn(
         node_id,

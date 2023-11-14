@@ -60,3 +60,7 @@ V0.2 additional features are as follows:
 
 4. Added node simulation of faulty nodes related components
 
+V0.3 
+
+Logging is now accurate to the ms level, making it easier to calculate throughput and latency
+
