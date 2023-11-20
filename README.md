@@ -68,5 +68,6 @@ V0.3
 Logging is now accurate to the ms level, making it easier to calculate throughput and latency
 
 V0.4
+
 Now that the system is able to simulate adversaries that behaves as in the paper, try adding the "--faulty_type 2" parameter in generate.
 
