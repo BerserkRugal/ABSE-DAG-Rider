@@ -78,7 +78,7 @@ impl ABSE {
       self.scores_i.push_back(s);
       // A new baseline is obtained based on r. The computation rules can be specialized for different scenarios.
       //self.baseline = (self.r as f64 * (2.0 * f + 1.0)) / (3.0 * f + 1.0);
-      self.baseline = ((self.r as f64 - self.size as f64 - 1.0).max(0.0)) * (2 * self.f + 1) as f64 / (3 * self.f + 1) as f64 / 4.0;
+      self.baseline = ((self.r as f64 - self.size as f64 - 1.0).max(0.0)) * (2 * self.f + 1) as f64 / (3 * self.f + 1) as f64 / 6.0;
       // On a 4 rounds (a wave) basis.
       Ok(())
     }

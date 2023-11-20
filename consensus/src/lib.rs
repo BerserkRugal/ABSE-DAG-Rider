@@ -106,9 +106,6 @@ impl Consensus {
 
             if !self.blocks_to_propose.is_empty() && self.state.dag.is_quorum_reached_for_round(&(self.state.current_round)) {
                 info!("DAG has reached the quorum for the round {:?}", self.state.current_round);
-                let s_array = self.get_array().to_vec();
-                self.abse_struct.set_info(s_array);
-                self.reset_array();
                 if Self::is_last_round_in_wave(self.state.current_round) {
                     info!("Finished the last round {:?} in the wave. Start to order vertices", self.state.current_round);
                     let ordered_vertices = self.get_ordered_vertices(self.state.current_round / MAX_WAVE);
@@ -128,6 +125,10 @@ impl Consensus {
                 debug!("DAG goes to the next round {:?} \n{}", self.state.current_round, self.state.dag);
                 
                 if self.abse_struct.get_r() < current_round {
+                  let s_array = self.get_array().to_vec();
+                  debug!("Success! Current array is: {:?}", s_array);
+                  self.abse_struct.set_info(s_array);
+                  self.reset_array();
                   self.abse_struct.update_round(current_round);
                   self.abse_struct.update();
                   self.abse_struct.set_info(Vec::new());
@@ -265,7 +266,7 @@ impl Consensus {
     fn get_wave_vertex_leader(&self, wave: Wave) -> Option<&Vertex> {
         let first_round_of_wave = self.get_round_for_wave(wave, 1);
         // let coin = first_round_of_wave;
-        let coin = wave;
+         let coin = wave;
 
         // Elect the leader.
         let mut keys: Vec<_> = self.committee.get_nodes_keys();
