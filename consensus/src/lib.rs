@@ -122,7 +122,9 @@ impl Consensus {
 
                 self.state.current_round += 1;
                 let current_round = self.state.current_round.clone();
-                debug!("DAG goes to the next round {:?} \n{}", self.state.current_round, self.state.dag);
+                debug!("DAG goes to the next round {:?},
+                the DAG graph shown below contains both strong and weak edges 
+                 \n{}", self.state.current_round, self.state.dag);
                 
                 if self.abse_struct.get_r() < current_round {
                   let s_array = self.get_array().to_vec();
@@ -136,6 +138,16 @@ impl Consensus {
                 }
                 
                 if self.ftype == 2 {
+                  if !self.advstra.is_empty(){
+                    let advstracp = self.advstra.pop().unwrap();
+                    let new_vertex = self.create_new_vertex_adv(self.state.current_round, advstracp.hash().clone(), advstracp.round().clone()).await.unwrap();
+                    self.advstra.push(advstracp);
+                    self.advstra.push(new_vertex);
+                  }else{
+                    let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
+                    self.advstra.push(new_vertex);
+                  }
+                  
                   if Self::is_last_round_in_wave(self.state.current_round) {
                     while !self.advstra.is_empty(){
                       let vert = self.advstra.pop().unwrap();
@@ -143,8 +155,6 @@ impl Consensus {
                       self.vertex_to_broadcast_sender.send(vert).await.unwrap();
                     }
                   }
-                  let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
-                  self.advstra.push(new_vertex);
                 }else{
                   let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
 
@@ -176,6 +186,25 @@ impl Consensus {
         }
 
         return Some(vertex);
+    }
+
+    async fn create_new_vertex_adv(&mut self, round: Round, vh: VertexHash, lr: Round) -> Option<Vertex> {
+      let block = self.blocks_to_propose.pop().unwrap();
+      info!("Start to create a new vertex with the block and {} transactions", block.transactions.len());
+      let mut parents = self.state.dag.get_vertices(&(round - 1));
+      parents.insert(vh,lr);
+      let mut vertex = Vertex::new(
+          self.committee.get_node_key(self.node_id).unwrap(),
+          round,
+          block,
+          parents,
+      );
+
+      if round > 2 {
+          self.set_weak_edges(&mut vertex, round);
+      }
+
+      return Some(vertex);
     }
 
     fn set_weak_edges(&self, vertex: &mut Vertex, round: Round) {
