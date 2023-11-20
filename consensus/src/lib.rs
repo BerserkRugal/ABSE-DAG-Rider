@@ -136,8 +136,6 @@ impl Consensus {
                 }
                 
                 if self.ftype == 2 {
-                  let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
-                  self.advstra.push(new_vertex);
                   if Self::is_last_round_in_wave(self.state.current_round) {
                     while !self.advstra.is_empty(){
                       let vert = self.advstra.pop().unwrap();
@@ -145,7 +143,8 @@ impl Consensus {
                       self.vertex_to_broadcast_sender.send(vert).await.unwrap();
                     }
                   }
-
+                  let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
+                  self.advstra.push(new_vertex);
                 }else{
                   let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
 
