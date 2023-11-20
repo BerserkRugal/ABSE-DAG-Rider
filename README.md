@@ -16,6 +16,9 @@ Cargo build
 ```Bash
 ./node -h
 ```
+```Bash
+./node generate -h
+```
 to view parameter definitions.
 
 The subcommand `generate` provide a way to generate multiple files for multi processes.
@@ -25,7 +28,7 @@ Example:
 
 Generate relevant configuration files in the current directory (batch size: 10, channel capacity： 1000， 16 processes, 0 fauties):
 ```Bash
-./node generate --batch_size 10 --channel_capacity 1000 --node_count 16 --faulty_count 0
+./node generate --batch_size 10 --channel_capacity 1000 --node_count 16 --faulty_count 0 --faulty_type 0
 ```
 
 This generates the committee.json and run_node.sh configuration files. 
@@ -63,4 +66,7 @@ V0.2 additional features are as follows:
 V0.3 
 
 Logging is now accurate to the ms level, making it easier to calculate throughput and latency
+
+V0.4
+Now that the system is able to simulate adversaries that behaves as in the paper, try adding the "--faulty_type 2" parameter in generate.
 

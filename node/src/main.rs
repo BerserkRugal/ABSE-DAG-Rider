@@ -36,6 +36,7 @@ async fn main() -> Result<()> {
               .about("Generate committee and run nodes")
               .args_from_usage("--node_count=[COUNT] 'Number of nodes'")
               .args_from_usage("--faulty_count=[FCOUNT] 'Number of faulties'")
+              .args_from_usage("--faulty_type=[FTYPE] 'Type of faulties, 1 represents simulating regular adversaries, 2 represents simulating special adversaries (as described in the paper)'")
               .args_from_usage("--channel_capacity=[CAPACITY] 'Channel capacity'")
               .args_from_usage("--batch_size=[SIZE] 'Batch size'")
         )
@@ -60,8 +61,21 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
     .unwrap_or("0")
     .parse::<usize>()
     .unwrap();
+    let mut ftype = 0;
+    if pretend_failure == 0 {
+      ftype = 0;
+    }else if pretend_failure == 1 {
+      ftype = 1;
+    }else if pretend_failure == 2 {
+      ftype = 2;
+    }
 
-    let pretend_failure = pretend_failure != 0;
+    let mut pretend_failure = pretend_failure != 0;
+
+    if ftype == 2 {
+      pretend_failure = false;
+    }
+    
 
     let channel_capacity = matches
     .value_of("channel_capacity")
@@ -110,7 +124,8 @@ async fn run(matches: &ArgMatches<'_>) -> Result<()> {
         vertex_to_consensus_receiver,
         vertex_to_broadcast_sender,
         vertex_output_sender,
-        block_receiver
+        block_receiver,
+        ftype
     );
 
     wait_and_print_vertexs(vertex_output_receiver).await;
@@ -130,6 +145,17 @@ async fn generate(matches: &ArgMatches<'_>) -> Result<()> {
         .unwrap_or("0")
         .parse::<usize>()
         .unwrap(); 
+
+  let faulty_type = matches
+        .value_of("faulty_type")
+        .unwrap_or("0")
+        .parse::<usize>()
+        .unwrap();       
+
+  let mut ftype = 1;
+  if faulty_type == 2{
+    ftype = 2;
+  }       
   
   if faulty_count > node_count - node_count / 3 * 2 - 1{
       println!("The number of malicious nodes is too high to meet 
@@ -162,13 +188,13 @@ async fn generate(matches: &ArgMatches<'_>) -> Result<()> {
   for id in 1..=node_count {
     if id==1{
       if id > node_count - faulty_count{
-        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=1 &", id, batch_size, channel_capacity)?;
+        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure={} &", id, batch_size, channel_capacity, ftype)?;
       }else{
         writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=0 &", id, batch_size, channel_capacity)?;
       }
     }else{
       if id > node_count - faulty_count{
-        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=1 &>/dev/null &", id, batch_size, channel_capacity)?;
+        writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure={} &>/dev/null &", id, batch_size, channel_capacity, ftype)?;
       }else{
         writeln!(script, "./node run --id={} --committee=committee.json --batch_size={} --channel_capacity={} --pretend_failure=0 &>/dev/null &", id, batch_size, channel_capacity)?;
       }

@@ -32,6 +32,8 @@ pub struct Consensus {
     abse_struct:ABSE,
     score_array: Vec<u64>,
     id_to_index: HashMap<NodePublicKey, usize>,
+    ftype: usize,
+    advstra: Vec<Vertex>,
 }
 
 impl Consensus {
@@ -42,6 +44,7 @@ impl Consensus {
         vertex_to_broadcast_sender: Sender<Vertex>,
         vertex_output_sender: Sender<Vertex>,
         blocks_receiver: Receiver<Block>,
+        ftype: usize,
     ) {
         tokio::spawn(async move {
             let state = State::new(Vertex::genesis(committee.get_nodes_keys()));
@@ -67,7 +70,9 @@ impl Consensus {
                 blocks_receiver,
                 abse_struct: ABSE::new(3, faulties as u64),
                 score_array,
-                id_to_index
+                id_to_index,
+                ftype,
+                advstra: vec![],
             }.run().await;
         });
     }
@@ -129,11 +134,27 @@ impl Consensus {
                   debug!("{:?}: ABSE Struct", self.abse_struct);
                 }
                 
-                
-                let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
+                if self.ftype == 2 {
+                  let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
+                  self.advstra.push(new_vertex);
+                  if Self::is_last_round_in_wave(self.state.current_round) {
+                    while !self.advstra.is_empty(){
+                      let vert = self.advstra.pop().unwrap();
+                      info!("Broadcast the new vertex {}", vert);
+                      self.vertex_to_broadcast_sender.send(vert).await.unwrap();
+                    }
+                  }
 
-                info!("Broadcast the new vertex {}", new_vertex);
-                self.vertex_to_broadcast_sender.send(new_vertex).await.unwrap();
+                }else{
+                  let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
+
+                  info!("Broadcast the new vertex {}", new_vertex);
+                  self.vertex_to_broadcast_sender.send(new_vertex).await.unwrap();
+                }
+                // let new_vertex = self.create_new_vertex(self.state.current_round).await.unwrap();
+
+                // info!("Broadcast the new vertex {}", new_vertex);
+                // self.vertex_to_broadcast_sender.send(new_vertex).await.unwrap();
                 //debug!("Broadcast the new vertex successfully!");
             }
         }
@@ -243,8 +264,8 @@ impl Consensus {
 
     fn get_wave_vertex_leader(&self, wave: Wave) -> Option<&Vertex> {
         let first_round_of_wave = self.get_round_for_wave(wave, 1);
-        let coin = first_round_of_wave;
-        // let coin = wave;
+        // let coin = first_round_of_wave;
+        let coin = wave;
 
         // Elect the leader.
         let mut keys: Vec<_> = self.committee.get_nodes_keys();
